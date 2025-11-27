@@ -74,9 +74,10 @@
 volatile sig_atomic_t stop = 0;
 void sigint_handler(int s) { stop = 1; }
 
-/* Shared variables */
+/* Global variables */
 double y_position_mm = 0.0 ;
 double user_velocity_steps_per_s = 0.0 ; // actual command (steps/s pour extrudeur)
+
 bool motion_started= false;
 bool motion_complete = false;
 bool system_error = false;
@@ -419,11 +420,11 @@ void homing_sequence() {
     printf("=== Retour à la position 0 (Homing) ===\n");
     printf("Position actuelle: %.2f mm\n", cur_mm);
 
-    if (cur_mm <= 0.1) {
-        printf("Déjà en position 0.\n");
-        cyclic_mode = CYCLE_SEGMENTED_TRAJECTORY;
-        return;
-    }
+    // if (cur_mm <= 0.1) {
+    //     printf("Déjà en position 0.\n");
+    //     cyclic_mode = CYCLE_SEGMENTED_TRAJECTORY;
+    //     return;
+    // }
 
     // Séquence CiA-402 pour démarrer le mouvement vers zéro
     uint16_t cw = 0x0006; // Shutdown
@@ -468,17 +469,17 @@ void homing_sequence() {
         cur_mm = UM_TO_MM(cur_pos_um);
         uint16_t axis_status = EC_READ_U16(domain1_pd + off_axisY_statusword);
 
-        printf("Position actuelle: %.2f mm, Statusword: 0x%04X\n", cur_mm, axis_status);
+        printf("ZeroCount : %d ,Position actuelle: %.2f mm, Statusword: 0x%04X\n", zero_reached_count, cur_mm, axis_status);
 
         // Vérifier si la cible est atteinte ou si la position est proche de 0
-        if ((axis_status & SW_TARGET_REACHED) || (cur_mm <= 0.1)) {
+        if ((cur_mm <= 0.1)) { // <-- condition ne fonctionne pas lorsqu'on lance le code et qu'on est déjà en 0mm
             zero_reached_count++;
         } else {
-            zero_reached_count = 0;
+            zero_reached_count=0;
         }
 
         // Exiger 50 cycles consécutifs pour confirmer
-        if (zero_reached_count >= 5000) {
+        if (zero_reached_count >= 100) {
             printf("Position 0 atteinte.\n");
             cyclic_mode = CYCLE_SEGMENTED_TRAJECTORY;
             break;
@@ -800,7 +801,6 @@ int main(void) {
             motion_complete = false;
             send_controlword_sequence_via_pdo();
         }
-
 
         wakeup.tv_nsec += PERIOD_NS;
         while (wakeup.tv_nsec >= NSEC_PER_SEC) {
