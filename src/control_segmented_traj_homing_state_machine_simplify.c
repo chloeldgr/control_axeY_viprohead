@@ -122,6 +122,8 @@ TrajectoryParams trajParams = {
 
 #define FACTOR 16.3835      // factor steps/s --> PDO (extruder)
 
+#define EPSILON 0.100 
+
 /* Conversion mm <--> um parameters */
 #define MM_TO_UM(x) ((int32_t)(x)*1000.0)
 #define UM_TO_MM(x) ((double)(x)/1000.0)
@@ -303,7 +305,14 @@ void check_slave_config_states(void)
     sc_y_state = s;
 }
 
-
+/* -------------------------------------------------------------------------- */
+/*                        FONCTIONS VERIF + AFFICHAGE ETATS                   */
+/* -------------------------------------------------------------------------- */
+static void ec_check_and_print_states(void) {
+    check_domain1_state();
+    check_master_state();
+    check_slave_config_states();
+}
 /* -------------------------------------------------------------------------- */
 /*                          FONCTIONS SDO                                     */
 /* -------------------------------------------------------------------------- */
@@ -360,6 +369,69 @@ static int read_sdo(uint16_t slave, uint16_t index, uint8_t sub, void *target, s
 
 
 /* -------------------------------------------------------------------------- */
+/*                             ENVOIE CONTROL WORD                            */
+/* -------------------------------------------------------------------------- */
+static void ec_send_controlword(uint16_t controlword) {
+    if (pdoOffsets.off_axisY_controlword != 0) {
+        EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, controlword);
+        ecrt_domain_queue(ecContext.domain1);
+        ecrt_master_send(ecContext.master);
+        usleep(100000);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             DEFINIR POSITION CIBLE                         */
+/* -------------------------------------------------------------------------- */
+static void ec_set_target_position(int32_t target_um) {
+    if (pdoOffsets.off_axisY_target != 0) {
+        EC_WRITE_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_target, target_um);
+        ecrt_domain_queue(ecContext.domain1);
+        ecrt_master_send(ecContext.master);
+        usleep(50000);
+    }
+}
+
+
+/* -------------------------------------------------------------------------- */
+/*                            EGALITE AVEC TOLERANCE                          */
+/* -------------------------------------------------------------------------- */
+static bool is_position_reached(double current, double target) {
+    return fabs(current - target) < EPSILON;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                             ACTIVER DESAC EXTRUDEUR                        */
+/* -------------------------------------------------------------------------- */
+static void ec_enable_extruder(bool enable) {
+    if (pdoOffsets.off_extruder_control_byte != 0) {
+        EC_WRITE_U8(ecContext.domain1_pd + pdoOffsets.off_extruder_control_byte, enable ? 1 : 0);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       DEFINITION VITESSE EXTRUDEUR                         */
+/* -------------------------------------------------------------------------- */
+static void ec_set_extruder_velocity(double velocity_steps_per_s) {
+    if (pdoOffsets.off_extruder_velocity != 0) {
+        uint16_t scaled_velocity = (uint16_t)(velocity_steps_per_s * FACTOR);
+        EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_extruder_velocity, scaled_velocity);
+    }
+}
+
+/* -------------------------------------------------------------------------- */
+/*                       DEFINITION VITESSE EXTRUDEUR                         */
+/* -------------------------------------------------------------------------- */
+static void log_position_and_extrusion(double timestamp, double position_mm, double extrusion_steps_per_s) {
+    if (logsFiles.log_extrusion_file) {
+        fprintf(logsFiles.log_extrusion_file, "%f,%.3f,%.1f\n", timestamp, position_mm, extrusion_steps_per_s);
+        fflush(logsFiles.log_extrusion_file);
+    }
+    printf("[EVENT] Extrusion=%.1f steps/s à Y=%.2f mm\n", extrusion_steps_per_s, position_mm);
+}
+
+
+/* -------------------------------------------------------------------------- */
 /*          CONFIGURATION AND LAUNCH Y-AXIS (via PDO controlword)             */
 /* -------------------------------------------------------------------------- */
 /* Activation sequence via PDO: send controlword by PDO (shutdown/switch-on/enable) */
@@ -370,39 +442,44 @@ int send_controlword_sequence_via_pdo() {
     }
     /* If target offset is available, write the target position into PDO before enabling */
     if (pdoOffsets.off_axisY_target != 0) {
-        EC_WRITE_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_target, pdoOffsets.axisY_target_pos_um);
-        ecrt_domain_queue(ecContext.domain1);
-        ecrt_master_send(ecContext.master);
-        usleep(50000);
+        ec_set_target_position(pdoOffsets.axisY_target_pos_um);
     }
     uint16_t cw = 0x0006; // Shutdown
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
+    ec_send_controlword(cw);
 
     cw = 0x0007; // Switch on
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
+    ec_send_controlword(cw);
 
     cw = 0x000F; // Enable operation
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
+    ec_send_controlword(cw);
 
     /* Start motion: set new setpoint + start (use the pattern que vous utilisiez précédemment)
     Here we set bit new setpoint + start bits equal to 0x009B */
     cw = 0x009B;
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
+    ec_send_controlword(cw);
 
     printf("Controlword sequence via PDO sent\n");
     return 0;
+}
+
+/* -------------------------------------------------------------------------- */
+/*                              ARRET AXE Y                                   */
+/* -------------------------------------------------------------------------- */
+
+static void ec_shutdown_axis_y(void) {
+    ec_send_controlword(0x0006); // Shutdown
+}
+
+/* -------------------------------------------------------------------------- */
+/*                      DEMARRER SEQUENCE HOMING                              */
+/* -------------------------------------------------------------------------- */
+static void start_homing_sequence(void) {
+    printf("=== Début du Homing ===\n");
+    ec_send_controlword(0x0006); // Shutdown
+    ec_send_controlword(0x0007); // Switch On
+    ec_send_controlword(0x000F); // Enable Operation
+    ec_set_target_position(0);
+    ec_send_controlword(0x009B); // Start Motion
 }
 
 /* -------------------------------------------------------------------------- */
@@ -414,52 +491,18 @@ void homing_sequence() {
         return;
     }
 
-    int32_t cur_pos_um = EC_READ_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_pos_actual);
-    double cur_mm = UM_TO_MM(cur_pos_um);
-    printf("=== Retour à la position 0 (Homing) ===\n");
-    printf("Position actuelle: %.2f mm\n", cur_mm);
-
-    // if (cur_mm <= 0.1) {
-    //     printf("Déjà en position 0.\n");
-    //     cyclic_mode = CYCLE_SEGMENTED_TRAJECTORY;
-    //     return;
-    // }
-
-    // Séquence CiA-402 pour démarrer le mouvement vers zéro
-    uint16_t cw = 0x0006; // Shutdown
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
-
-    cw = 0x0007; // Switch on
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
-
-    cw = 0x000F; // Enable operation
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
-
-    // Écrire target = 0
-    EC_WRITE_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_target, 0);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(50000);
-
-    // Bit "start" pour position control
-    cw = 0x009B;
-    EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, cw);
-    ecrt_domain_queue(ecContext.domain1);
-    ecrt_master_send(ecContext.master);
-    usleep(100000);
+    start_homing_sequence();
 
     // Boucle bloquante jusqu'à ce que la position réelle atteigne 0
     printf("Déplacement en cours...\n");
+
     int zero_reached_count = 0;
+    int32_t cur_pos_um = 0;
+    double cur_mm = 0.0;
+
+    printf("=== Retour à la position 0 (Homing) ===\n");
+    printf("Position actuelle: %.8f mm\n", cur_mm);
+
     while (!stop) {
         ecrt_master_receive(ecContext.master);
         ecrt_domain_process(ecContext.domain1);
@@ -468,16 +511,16 @@ void homing_sequence() {
         cur_mm = UM_TO_MM(cur_pos_um);
         uint16_t axis_status = EC_READ_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_statusword);
 
-        printf("ZeroCount : %d ,Position actuelle: %.2f mm, Statusword: 0x%04X\n", zero_reached_count, cur_mm, axis_status);
+        printf("ZeroCount : %d ,Position actuelle: %.5f mm, Statusword: 0x%04X\n", zero_reached_count, cur_mm, axis_status);
 
         // Vérifier si la cible est atteinte ou si la position est proche de 0
-        if ((cur_mm <= 0.1)) { // <-- condition ne fonctionne pas lorsqu'on lance le code et qu'on est déjà en 0mm
+        if (is_position_reached(cur_mm,0.0)) { // <-- condition ne fonctionne pas lorsqu'on lance le code et qu'on est déjà en 0mm
             zero_reached_count++;
         } else {
             zero_reached_count=0;
         }
 
-        // Exiger 50 cycles consécutifs pour confirmer
+        // Exiger 100 cycles consécutifs pour confirmer
         if (zero_reached_count >= 100) {
             printf("Position 0 atteinte.\n");
             cyclic_mode = CYCLE_SEGMENTED_TRAJECTORY;
@@ -494,6 +537,7 @@ void homing_sequence() {
 /*                          CYCLIC TASK RT (1 ms LOOP)                        */
 /* -------------------------------------------------------------------------- */
 static unsigned int counter = 0;
+
 void cyclic_task() {
     // --- Receive PDOs, process domain ---
     ecrt_master_receive(ecContext.master);
@@ -501,27 +545,31 @@ void cyclic_task() {
 
     if (counter == 0) {
         counter = 1000;
-        check_domain1_state();
-        check_master_state();
-        check_slave_config_states();
+        ec_check_and_print_states();
     }
     counter--;
 
     // --- Read Axis Y position if offset valid ---
-    int32_t pos_um = 0;
-    double y = 0.0;
-    if (pdoOffsets.off_axisY_pos_actual != 0) {
-        pos_um = EC_READ_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_pos_actual);
-        y = UM_TO_MM(pos_um);
-        systemState.y_position_mm = y;
-    }
+    int32_t position_um = EC_READ_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_pos_actual);
+    systemState.y_position_mm = UM_TO_MM(position_um);
+    // int32_t pos_um = 0;
+    // double y = 0.0;
+    // if (pdoOffsets.off_axisY_pos_actual != 0) {
+    //     pos_um = EC_READ_S32(ecContext.domain1_pd + pdoOffsets.off_axisY_pos_actual);
+    //     y = UM_TO_MM(pos_um);
+    //     systemState.y_position_mm = y;
+    // }
 
     // --- Read statusword Y ---
-    uint16_t axis_status = 0;
-    if (pdoOffsets.off_axisY_statusword != 0) {
-        axis_status = EC_READ_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_statusword);
-    }
+    uint16_t axis_status = EC_READ_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_statusword);
+    // uint16_t axis_status = 0;
+    // if (pdoOffsets.off_axisY_statusword != 0) {
+    //     axis_status = EC_READ_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_statusword);
+    // }
 
+
+    // --- GESTION DES MODES ---
+    
     // --- Mode HOMING ---
     if (cyclic_mode == CYCLE_HOMING) {
         homing_sequence();
@@ -546,19 +594,19 @@ void cyclic_task() {
 
         switch (etape) {
             case 0:
-                if (y >= seuil1) {
+                if (systemState.y_position_mm >= seuil1) {
                     systemState.user_velocity_steps_per_s = trajParams.extru_lente ;
                     etape = 1;
                 }
                 break;
             case 1:
-                if (y >= seuil2) {
+                if (systemState.y_position_mm >= seuil2) {
                     systemState.user_velocity_steps_per_s = trajParams.extru_rapide;
                     etape = 2;
                 }
                 break;
             case 2:
-                if (y >= seuil3) {
+                if (systemState.y_position_mm >= seuil3) {
                     systemState.user_velocity_steps_per_s = 0.0;
                     etape = 3;
                 }
@@ -571,12 +619,7 @@ void cyclic_task() {
             struct timespec ts;
             clock_gettime(CLOCK_MONOTONIC, &ts);
             double t = ts.tv_sec + ts.tv_nsec * 1e-9;
-
-            if (logsFiles.log_extrusion_file) {
-                fprintf(logsFiles.log_extrusion_file, "%f,%.3f,%.1f\n", t, systemState.y_position_mm, systemState.user_velocity_steps_per_s);
-                fflush(logsFiles.log_extrusion_file);
-            }
-            printf("[EVENT] Extrusion=%.1f steps/s à Y=%.2f mm\n", systemState.user_velocity_steps_per_s, systemState.y_position_mm);
+            log_position_and_extrusion(t,systemState.y_position_mm, systemState.user_velocity_steps_per_s);
             last_extrusion = systemState.user_velocity_steps_per_s;
         }
 
@@ -595,12 +638,8 @@ void cyclic_task() {
     // --- Mode SHUTDOWN ---
     if (cyclic_mode == CYCLE_SHUTDOWN) {
         systemState.user_velocity_steps_per_s = 0.0;
-        if (pdoOffsets.off_extruder_control_byte != 0) {
-            EC_WRITE_U8(ecContext.domain1_pd + pdoOffsets.off_extruder_control_byte, 0);
-        }
-        if (pdoOffsets.off_extruder_velocity != 0) {
-            EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_extruder_velocity, 0);
-        }
+        ec_enable_extruder(0);
+        ec_set_extruder_velocity(0);
         if (pdoOffsets.off_axisY_controlword != 0) {
             EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, 0x0006); // Shutdown
         }
@@ -616,13 +655,10 @@ void cyclic_task() {
     }
 
     // --- Write extrusion speed ---
-    uint16_t scaled = (uint16_t)(systemState.user_velocity_steps_per_s * FACTOR);
-    if (pdoOffsets.off_extruder_control_byte != 0) {
-        EC_WRITE_U8(ecContext.domain1_pd + pdoOffsets.off_extruder_control_byte, 1);
-    }
-    if (pdoOffsets.off_extruder_velocity != 0) {
-        EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_extruder_velocity, scaled);
-    }
+
+    ec_set_extruder_velocity(systemState.user_velocity_steps_per_s) ;
+    ec_enable_extruder(true) ;
+
 
     ecrt_domain_queue(ecContext.domain1);
     ecrt_master_send(ecContext.master);
@@ -651,24 +687,13 @@ int main(void) {
     signal(SIGINT, sigint_handler);
 
     logsFiles.log_extrusion_file = fopen("extrusion_events.csv", "w");
-    if (!logsFiles.log_extrusion_file) {
-        perror("log extrusion");
+    logsFiles.log_position_file = fopen("position_log.csv", "w");
+    if (!logsFiles.log_extrusion_file || !logsFiles.log_position_file) {
+        perror("log file");
         exit(1);
     }
     fprintf(logsFiles.log_extrusion_file, "timestamp_s,y_position_mm,extrusion_steps_s\n");
-
-    logsFiles.log_position_file = fopen("position_log.csv", "w");
-    if (!logsFiles.log_position_file) {
-        perror("log position");
-        exit(1);
-    }
     fprintf(logsFiles.log_position_file, "timestamp_s,y_position_mm,extrusion_steps_s\n");
-
-    printf("\n");
-    printf("╔════════════════════════════════════════════════════════════╗\n");
-    printf("║   EtherCAT Control - Axe Y + Extrudeur (Méthode Shell)     ║\n");
-    printf("╚════════════════════════════════════════════════════════════╝\n");
-    printf("\n");
 
     /* --- Initialisation master EtherCAT --- */
     printf("=== Initialisation EtherCAT ===\n");
@@ -757,6 +782,7 @@ int main(void) {
            pdoOffsets.off_axisY_pos_actual, pdoOffsets.off_axisY_statusword, pdoOffsets.off_axisY_controlword, pdoOffsets.off_axisY_target,
            pdoOffsets.off_extruder_control_byte, pdoOffsets.off_extruder_velocity);
 
+    /* --- Echange PDO initial --- */
     printf("Exchange of initial PDO (3 secondes)...\n");
     struct timespec wakeup;
     clock_gettime(CLOCK_MONOTONIC, &wakeup);
@@ -774,10 +800,12 @@ int main(void) {
     }
     printf("Communication done!\n");
 
+    /* --- Initialisation des états --- */
     systemState.motion_started = false;
     systemState.motion_complete = false;
     cyclic_mode = CYCLE_HOMING;
 
+    /* --- Création du thread de supervision --- */
     pthread_t thread_sup;
     if (pthread_create(&thread_sup, NULL, supervisor_thread, NULL) != 0) {
         perror("pthread_create");
@@ -788,7 +816,7 @@ int main(void) {
     printf("(CTRL+C to stop)\n\n");
 
 
-    clock_gettime(CLOCK_MONOTONIC, &wakeup);
+    /* --- Boucle principale --- */
     while (!stop) {
         cyclic_task();
 
@@ -808,34 +836,29 @@ int main(void) {
         }
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &wakeup, NULL);
 
-        if (systemState.motion_complete || systemState.system_error) break;
+        if (systemState.motion_complete || systemState.system_error) {
+            break;
+        }
     }
 
     printf("\n=== Stopping system ===\n");
-    systemState.user_velocity_steps_per_s = 0.0;
-    printf("Stop extrusion...\n");
+    
 
-    for (int i = 0; i < 100; i++) {
-        cyclic_task();
-        usleep(1000);
-    }
+    // for (int i = 0; i < 100; i++) {
+    //     cyclic_task();
+    //     usleep(1000);
+    // }
 
     printf("Desactivation of drive Y...\n");
-    if (ecContext.domain1_pd && pdoOffsets.off_axisY_controlword != 0) {
-        EC_WRITE_U16(ecContext.domain1_pd + pdoOffsets.off_axisY_controlword, 0x0006);
-        ecrt_domain_queue(ecContext.domain1);
-        ecrt_master_send(ecContext.master);
-        usleep(100000);
-    }
+    ec_shutdown_axis_y();
+
+    printf("Stop extrusion...\n");
+    ec_enable_extruder(false) ;
+    ec_set_extruder_velocity(0.0) ;
+    
 
     stop = 1;
     pthread_join(thread_sup, NULL);
-
-    printf("\n╔════════════════════════════════════════════════════════════╗\n");
-    printf("║                      Programme done                        ║\n");
-    printf("╚════════════════════════════════════════════════════════════╝\n");
-    printf("Final position: %.2f mm\n\n", systemState.y_position_mm);
-
     ecrt_release_master(ecContext.master);
     if (logsFiles.log_extrusion_file) fclose(logsFiles.log_extrusion_file);
     if (logsFiles.log_position_file) fclose(logsFiles.log_position_file);
