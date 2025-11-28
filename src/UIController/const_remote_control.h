@@ -1,0 +1,13 @@
+#ifndef CONST_REMOTE_CONTROL_H
+#define CONST_REMOTE_CONTROL_H
+
+#define REMOTE_CTRL_START_RTCONTROLLER  1
+#define REMOTE_CTRL_STOP_RTCONTROLLER   2
+#define REMOTE_CTRL_DO_CAL              3
+#define REMOTE_CTRL_GET_ROBOT_STATUS    4
+#define REMOTE_CTRL_SET_JPOS_REF        5
+
+enum request_to_remote_control{   SYNCHRO_REMOTE_CTRL = 1};
+
+#endif // CONST_REMOTE_CONTROL_H
+

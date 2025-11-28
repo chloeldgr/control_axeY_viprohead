@@ -1,0 +1,56 @@
+#include "DialogAdvancedControl.h"
+#include "ui_DialogAdvancedControl.h"
+#include <QFileDialog>
+#include <QDebug>
+#include <QMessageBox>
+
+DialogAvancedControl::DialogAvancedControl(QWidget *parent) :
+    QDialog(parent),
+    ui(new Ui::DialogAvancedControl)
+{
+    ui->setupUi(this);
+    ui->btn_SendData->setDisabled(true);
+}
+
+DialogAvancedControl::~DialogAvancedControl()
+{
+    delete ui;
+}
+
+void DialogAvancedControl::on_btn_LoadData_clicked()
+{
+    QString filename = QFileDialog::getOpenFileName(this,
+                                                    tr("Load data"),
+                                                    ".",
+                                                    "All file(*.*);; Text File (*.txt);; Data File (*.dat)");
+    // Ouverture du fichier de données
+    QFile file(filename);
+    if ( !file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        QMessageBox::information(this,tr("Impossible d'ouvrir le fichier "),filename);
+        return;
+    }
+    // Allocation
+    while(!file.atEnd())
+    {
+        QByteArray line = file.readLine();
+        listOfDirectControlData
+        qDebug() << line ;
+    }
+
+    ui->btn_SendData->setDisabled(false);
+
+
+}
+
+
+
+void DialogAvancedControl::on_btn_SendData_clicked()
+{
+
+}
+
+void DialogAvancedControl::on_btn_Stop_clicked()
+{
+
+}
