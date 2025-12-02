@@ -420,7 +420,7 @@ static void ec_set_extruder_velocity(double velocity_steps_per_s) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*                       DEFINITION VITESSE EXTRUDEUR                         */
+/*                       LOG POSITION AND EXTRUSION                           */
 /* -------------------------------------------------------------------------- */
 static void log_position_and_extrusion(double timestamp, double position_mm, double extrusion_steps_per_s) {
     if (logsFiles.log_extrusion_file) {
@@ -821,7 +821,7 @@ int main(void) {
         cyclic_task();
 
         // Démarrer la trajectoire segmentée après le homing
-        if (cyclic_mode == CYCLE_SEGMENTED_TRAJECTORY && !systemState.motion_started) {
+        if ((cyclic_mode == CYCLE_SEGMENTED_TRAJECTORY) && !systemState.motion_started) {
             printf("[INFO] Départ trajectoire principale\n");
             pdoOffsets.axisY_target_pos_um = MM_TO_UM(trajParams.dist_avance_vide1 + trajParams.dist_extru_lente + trajParams.dist_extru_rapide + trajParams.dist_avance_vide2);
             systemState.motion_started = true;
