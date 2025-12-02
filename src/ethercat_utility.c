@@ -269,7 +269,8 @@ void start_homing_sequence(EtherCATContext ec_context, Axis axis_to_homing) {
 }
 
 void homing_sequence(EtherCATContext ec_context, 
-                    Axis axis_to_homing ) {
+                    Axis axis_to_homing,
+                    CycleMode cycle_mode ) {
 
     if (!ec_context.domain1_pd || axis_to_homing.off_axis_target == 0 || axis_to_homing.off_axis_controlword == 0) {
         fprintf(stderr, "Offsets PDO invalides pour homing_sequence()\n");
@@ -358,7 +359,7 @@ void cyclic_task(EtherCATContext ec_context, EtherCATState ec_state, Extruder ex
     
     // --- Mode HOMING ---
     if (cycle_mode == CYCLE_HOMING) {
-        homing_sequence(ec_context, axis_to_move);
+        homing_sequence(ec_context, axis_to_move, cycle_mode);
     }
 
     // --- Mode TRAJECTORY ---

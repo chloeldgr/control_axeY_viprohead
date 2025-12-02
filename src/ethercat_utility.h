@@ -183,8 +183,7 @@ void ec_shutdown_single_axis(EtherCATContext ec_context, Axis axis_to_shutdown);
 
 /* Homing */
 void start_homing_sequence(EtherCATContext ec_context, Axis axis_to_homing);
-void homing_sequence(EtherCATContext ec_context, Axis axis_to_homing) ;
-
+void homing_sequence(EtherCATContext ec_context, Axis axis_to_homing, CycleMode cycle_mode ); 
 /* Cyclic task */
 void cyclic_task(EtherCATContext ec_context, EtherCATState ec_state, Extruder extruder_to_use, Axis axis_to_move, SystemState system_state, CycleMode cycle_mode, TrajectoryParams traj_segmented, LogFiles log_files);
 
