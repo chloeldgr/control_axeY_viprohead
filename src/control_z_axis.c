@@ -298,32 +298,11 @@ int send_controlword_sequence_via_pdo() {
     cw = 0x000F; // Enable operation
     ec_send_controlword(cw);
 
-    // Activation du frein (exemple : bit 0 pour O1)
-    uint16_t brake_mask = 0x0001; // Bit 0 pour O1 (à adapter selon la doc)
-    uint16_t brake_enable = 0x0001; // Activer le contrôle du frein
-    // Écrire le masque pour activer le contrôle du frein (subindex 2)
-    if (write_sdo(0, 0x60FE, 0x02, &brake_enable, sizeof(brake_enable)) < 0) {
-        fprintf(stderr, "WARNING: Failed to enable brake control (SDO)\n");
-    }
-    usleep(100000);
-    // Activer le frein (subindex 1)
-    if (write_sdo(0, 0x60FE, 0x01, &brake_mask, sizeof(brake_mask)) < 0) {
-        fprintf(stderr, "WARNING: Failed to set brake (SDO)\n");
-    }
-    usleep(100000);
-
 
     /* Start motion: set new setpoint + start (use the pattern que vous utilisiez précédemment)
     Here we set bit new setpoint + start bits equal to 0x009B */
     cw = 0x009B;
     ec_send_controlword(cw);
-
-    // Après avoir activé le mode opérationnel, relâcher le frein
-    brake_mask = 0x0000; // Désactiver le frein
-    if (write_sdo(0, 0x60FE, 0x01, &brake_mask, sizeof(brake_mask)) < 0) {
-        fprintf(stderr, "WARNING: Failed to release brake (SDO)\n");
-    }
-    usleep(100000);
 
     printf("Controlword sequence via PDO sent\n");
     return 0;
@@ -490,14 +469,14 @@ int main(void) {
     if (write_sdo(0 /* slave index */, 0x6081, 0x00, &vel_um_s, sizeof(vel_um_s)) < 0) {
         fprintf(stderr, "WARNING: Failed to set profile velocity (SDO)\n");
     }
-    usleep(100000);
-    if (write_sdo(0, 0x6083, 0x00, &acceleration, sizeof(acceleration)) < 0) {
-        fprintf(stderr, "WARNING: Failed to set profile acceleration (SDO)\n");
-    }
-    usleep(100000);
-    if (write_sdo(0, 0x6084, 0x00, &acceleration, sizeof(acceleration)) < 0) {
-        fprintf(stderr, "WARNING: Failed to set profile deceleration (SDO)\n");
-    }
+    // usleep(100000);
+    // if (write_sdo(0, 0x6083, 0x00, &acceleration, sizeof(acceleration)) < 0) {
+    //     fprintf(stderr, "WARNING: Failed to set profile acceleration (SDO)\n");
+    // }
+    // usleep(100000);
+    // if (write_sdo(0, 0x6084, 0x00, &acceleration, sizeof(acceleration)) < 0) {
+    //     fprintf(stderr, "WARNING: Failed to set profile deceleration (SDO)\n");
+    // }
     usleep(100000);
     if (write_sdo(0 /* slave index */, 0x607A, 0x00, &target_pos_um, sizeof(target_pos_um)) < 0) {
         fprintf(stderr, "WARNING: Failed to set initial target position (SDO)\n");
