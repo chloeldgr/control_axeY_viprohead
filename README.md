@@ -1,5 +1,4 @@
-# pneumatic_control_panel
-
+# Generic EtherCAT Controller
 
 
 ## Getting started
