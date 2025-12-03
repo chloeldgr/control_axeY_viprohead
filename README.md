@@ -1,5 +1,13 @@
 # Generic EtherCAT Controller
 
+## Instructions de compilation du controleur sans interface graphique
+```
+mkdir build
+cd build
+cmake ../src
+make 
+```
+
 
 ## Getting started
 
