@@ -36,7 +36,7 @@ find_package(EtherCAT REQUIRED)
 
 include_directories(${INCLUDE_DIRECTORIES} ${ETHERCAT_INCLUDE_DIR}) # ${QT_USE_FILE})
 add_subdirectory(${PROJECT_SOURCE_DIR}/CommonLibs/rtBeckhoffModules)
-add_subdirectory(${PROJECT_SOURCE_DIR}/CommonLibs/rtControllerModules)
+#add_subdirectory(${PROJECT_SOURCE_DIR}/CommonLibs/rtControllerModules)
 
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/rtController)

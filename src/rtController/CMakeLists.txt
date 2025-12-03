@@ -19,10 +19,10 @@ set(EXTRA_LIBS
     ec_el2004
     ec_el2828
     ec_el2124
-    rtJPosPlanner
-    rtJVelPlanner
-    rtPIDControl
-    rtAuxeticInchwormActuator
+#    rtJPosPlanner
+#    rtJVelPlanner
+#    rtPIDControl
+#    rtAuxeticInchwormActuator
 )
 
 add_executable(rtController ${INC} ${SRC})
