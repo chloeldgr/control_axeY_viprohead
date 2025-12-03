@@ -76,7 +76,7 @@ int rtJVelPlanner_Init( 	int 	Nb,
                     ( JVPlanner[i].Ini > JVPlanner[i].Max ) )
             {
                 rtJVelPlanner_Reset( );
-                rt_printf(PFX"Axe %d min : %f max : %f init : %f\n",i,JVPlanner[i].Min,JVPlanner[i].Max,JVPlanner[i].Ini );
+                printf("Axe %d min : %f max : %f init : %f\n",i,JVPlanner[i].Min,JVPlanner[i].Max,JVPlanner[i].Ini );
                 return -3;
             }
         }
@@ -250,7 +250,7 @@ int rtJVelPlanner_Update( double *Reference )
 
     if ( flag )
     {
-        rt_printf(PFX "Reset JVel Planner number\n");
+        printf("Reset JVel Planner number\n");
         Planner_number = 0;
 
         return 1;
@@ -262,7 +262,7 @@ int rtJVelPlanner_Update( double *Reference )
 
 int rtJVelPlanner_Reset(void)
 {
-    rt_printf(PFX" Reset JVel Planner\n");
+    printf(" Reset JVel Planner\n");
     Planner_number = 0;
 
     return 0;

@@ -29,7 +29,7 @@ void set_signal_action(void)
 }
 
 
-// Helper: Add nanoseconds to timespec
+// Add nanoseconds to timespec
 void timespec_add_ns(struct timespec *t, long ns) {
     t->tv_nsec += ns;
     while (t->tv_nsec >= 1000000000L) {
@@ -48,8 +48,8 @@ void *rt_thread(void *arg) {
 
     while (rt_controller_task->running) {
         // Do the job
-        printf("Tick %d\n", i);
-        i++;
+
+        
         // Compute next wake-up
         timespec_add_ns(&next, rt_controller_task->period_ns);
 
