@@ -3,9 +3,7 @@ file(GLOB_RECURSE SRC "*.c")
 
 include_directories(${ETHERCAT_INCLUDE_DIR})
 set(EXTRA_LIBS
-    ${XENOMAI_LIBRARY_NATIVE} ${XENOMAI_LIBRARY_XENOMAI}
     ${ECAT_LIBRARY}
-#    ${BECKHOFF_MODULES_PATH}
     rt
     pthread
     m
@@ -30,3 +28,17 @@ set(EXTRA_LIBS
 add_executable(rtController ${INC} ${SRC})
 target_link_libraries(rtController ${EXTRA_LIBS})
 
+
+# # Use pthread
+# find_package(Threads REQUIRED)
+
+# add_executable(rt_example
+#     rtController/rtController.c
+# )
+
+# target_link_libraries(rtController
+#     Threads::Threads
+# )
+
+# # Enable compile flags useful for RT
+# target_compile_options(rtController PRIVATE -Wall -Wextra -O2)
