@@ -6,25 +6,14 @@
 #include <signal.h>
 #include <strings.h>
 #include <stdlib.h>
+#include "ethercat_utility.h"
 
 #define RT_CONTROLLER_PERIOD_NS 1000000L   // 1 ms = 1 kHz loop
 #define RT_CONTROLLER_PRIORITY 80          // 0–99, requires sudo on Linux
 
-// Topologie du bus Ethercat
-/* Vendor / Product codes */
-#define ED1F               0x0000aaaa, 0x00000005
-#define Beckhoff_EK1100    0x00000002, 0x01c33052
-#define Beckhoff_EL7031    0x00000002, 0x1b773052
 
-/* EtherCAT positions */
-#define AxisX1Pos     0, 0
-#define AxisX2Pos     0, 1
-#define AxisZPos      0, 2
-#define AxisYPos      0, 3
-#define BusCouplerPos 0, 4
-#define ExtruderPos   0, 5
 
-// Mode of rtCOntroller
+// Mode of controller
 typedef enum {
     CYCLE_IDLE = 0,
     CYCLE_HOMING,

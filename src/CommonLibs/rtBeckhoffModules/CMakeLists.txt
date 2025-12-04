@@ -1,5 +1,4 @@
 set(EXTRA_LIBS
-    ${XENOMAI_LIBRARY_NATIVE} ${XENOMAI_LIBRARY_XENOMAI}
     ${ECAT_LIBRARY}
     rt
     pthread

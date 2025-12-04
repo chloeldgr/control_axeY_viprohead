@@ -1,10 +1,14 @@
 #define _GNU_SOURCE
 #include "rtController.h"
 
-
+// Global pointer to the real-time controller task
 RT_CONTROLLER_TASK *rt_controller_task;
 
-// Handler pour Ctrl-C
+/**
+ * @brief stop the real-time loop on SIGINT
+ * 
+ * @param signal 
+ */
 void handle_sigint(int signal) {
     if (signal == SIGINT)
     {
@@ -13,6 +17,10 @@ void handle_sigint(int signal) {
     }
 }
 
+/**
+ * @brief Set the signal action object
+ * 
+ */
 void set_signal_action(void)
 {
     // Declare the sigaction structure
@@ -29,7 +37,12 @@ void set_signal_action(void)
 }
 
 
-// Add nanoseconds to timespec
+/**
+ * @brief Add nanoseconds to a timespec structure
+ * 
+ * @param t 
+ * @param ns 
+ */
 void timespec_add_ns(struct timespec *t, long ns) {
     t->tv_nsec += ns;
     while (t->tv_nsec >= 1000000000L) {
@@ -37,6 +50,8 @@ void timespec_add_ns(struct timespec *t, long ns) {
         t->tv_sec += 1;
     }
 }
+
+
 
 void *rt_thread(void *arg) {
     struct timespec next;
